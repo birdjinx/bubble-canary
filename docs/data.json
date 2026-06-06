@@ -1,12 +1,12 @@
 {
   "vix": 21.51,
-  "hy_oas": 2.7,
+  "hy_oas": 274.0,
   "on_rrp": 0.001,
   "tga": 0.876,
   "fed_balance_sheet": 6.711,
   "yield_curve_10y2y": 38.0,
   "dxy": 100.07,
-  "nasdaq_concentration": 4593.5,
-  "updated_at": "2026-06-06T11:18:33.180902",
+  "nasdaq_concentration": 46.7,
+  "updated_at": "2026-06-06T11:24:13.510348",
   "data_source": "FRED + Yahoo Finance"
 }
