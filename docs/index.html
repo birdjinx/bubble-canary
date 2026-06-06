@@ -497,7 +497,7 @@ async function showAnalysis() {
       },
       body: JSON.stringify({
         model: 'claude-sonnet-4-6',
-        max_tokens: 300,
+        max_tokens: 700,
         messages: [{
           role: 'user',
           content: `US financial market data (${new Date(RAW.updated_at).toLocaleDateString('ko-KR')}):
@@ -505,7 +505,19 @@ VIX: ${RAW.vix}, HY OAS: ${RAW.hy_oas}bp, 10Y-2Y: ${RAW.yield_curve_10y2y}bp
 Fed BS: ${RAW.fed_balance_sheet}T$, Net Liq: ${SCORES.net_liq}T$
 DXY: ${RAW.dxy}, Risk Score: ${SCORES.total}/100 (${SCORES.level})
 
-한국어로 간결하게: (1) 현재 시장 상황의 핵심 (2) 가장 주목할 리스크 (3) 투자자 관점에서 실질적 시사점. 총 5~7문장.`
+당신은 한국 개인투자자를 위한 미국 금융시장 해설가입니다.
+아래 데이터를 바탕으로 친절하고 이해하기 쉬운 시장 브리핑을 작성하세요.
+
+규칙:
+- 전문 용어 첫 등장 시 괄호로 설명. 예: VIX(시장 공포지수), HY OAS(정크본드 위험 프리미엄), Net Liquidity(시장 실질 유동성)
+- 숫자의 의미를 반드시 설명. 예: "VIX 21은 약간 불안한 수준(정상은 15~20)"
+- 친근하고 명확한 한국어, 마크다운 없이 plain text
+
+아래 4가지 항목을 각 2~3문장씩 작성:
+1. 한줄 요약: 지금 시장 분위기를 한 문장으로
+2. 주요 지표 해석: 각 수치가 의미하는 바
+3. 핵심 위험 요인: 가장 주의할 점
+4. 투자자 시사점: 지금 어떻게 행동하면 좋을지`
         }],
       }),
     });
