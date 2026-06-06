@@ -131,6 +131,7 @@ def get_fed_gap():
 
 
 
+def get_nasdaq_concentration():
     """
     나스닥 100 상위 7개 종목의 시가총액 비중 계산
     QQQ ETF의 totalAssets(AUM)을 나스닥100 전체 시총 근사치로 사용
