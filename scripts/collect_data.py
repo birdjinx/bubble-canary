@@ -1,18 +1,21 @@
 """
 bubble_canary 데이터 수집기
 수집 지표:
-  - VIX        : Yahoo Finance (^VIX)
-  - HY OAS     : FRED BAMLH0A0HYM2 (basis points)
-  - ON RRP     : FRED RRPONTSYD (Billions → T$)
-  - TGA        : FRED WTREGEN (Millions → T$)
-  - Fed BS     : FRED WALCL (Millions → T$)
-  - 10Y-2Y     : FRED T10Y2Y (% → bp)
-  - DXY        : Yahoo Finance (DX-Y.NYB)
-  - Nasdaq Top7: Yahoo Finance (시가총액 비율 계산)
+  - VIX          : Yahoo Finance (^VIX)
+  - HY OAS       : FRED BAMLH0A0HYM2 (basis points)
+  - ON RRP       : FRED RRPONTSYD (Billions → T$)
+  - TGA          : FRED WTREGEN (Millions → T$)
+  - Fed BS       : FRED WALCL (Millions → T$)
+  - 10Y-2Y       : FRED T10Y2Y (% → bp)
+  - DXY          : Yahoo Finance (DX-Y.NYB)
+  - Nasdaq Top7  : Yahoo Finance (시가총액 비율 계산)
+  - S&P 500 RSI  : Yahoo Finance ^GSPC RSI(14)
+  - Fed Gap      : FRED DGS2 - FEDFUNDS (정책 기대 갭)
 """
 
 import os
 import json
+import numpy as np
 from datetime import datetime, timedelta
 
 import yfinance as yf
@@ -59,7 +62,75 @@ def get_yahoo(ticker, decimals=2):
         return None
 
 
-def get_nasdaq_concentration():
+def calculate_rsi(prices, period=14):
+    """RSI(14) Wilder 방식 계산"""
+    prices = np.array(prices, dtype=float)
+    if len(prices) < period + 2:
+        return None
+    deltas = np.diff(prices)
+    gains  = np.where(deltas > 0, deltas, 0.0)
+    losses = np.where(deltas < 0, -deltas, 0.0)
+
+    avg_gain = np.mean(gains[:period])
+    avg_loss = np.mean(losses[:period])
+
+    for i in range(period, len(deltas)):
+        avg_gain = (avg_gain * (period - 1) + gains[i]) / period
+        avg_loss = (avg_loss * (period - 1) + losses[i]) / period
+
+    if avg_loss == 0:
+        return 100.0
+    rs  = avg_gain / avg_loss
+    rsi = round(100 - (100 / (1 + rs)), 1)
+    print(f"  [S&P RSI] {rsi}")
+    return rsi
+
+
+def get_sp500_rsi():
+    """S&P 500 RSI(14) + 200일 이동평균 대비 거리(%) 수집"""
+    try:
+        hist = yf.Ticker("^GSPC").history(period="1y")
+        if hist.empty or len(hist) < 20:
+            print("  [S&P500] 데이터 부족")
+            return None, None
+        closes = hist["Close"].dropna().tolist()
+
+        rsi = calculate_rsi(closes)
+
+        # 200일 MA 대비 거리 (데이터가 200개 이상일 때)
+        if len(closes) >= 200:
+            ma200    = float(np.mean(closes[-200:]))
+            ma_dist  = round((closes[-1] - ma200) / ma200 * 100, 1)
+        else:
+            ma_dist  = round((closes[-1] - float(np.mean(closes))) / float(np.mean(closes)) * 100, 1)
+
+        print(f"  [S&P 200MA 거리] {ma_dist}%")
+        return rsi, ma_dist
+    except Exception as e:
+        print(f"  [S&P500] 오류: {e}")
+        return None, None
+
+
+def get_fed_gap():
+    """
+    Fed Policy Gap = 2년물 국채금리 - Fed Funds Rate
+    양수(+) : 시장이 추가 인상 기대 → 금리 충격 리스크
+    음수(-) : 시장이 인하 기대 → 경기 둔화/침체 시그널
+    """
+    try:
+        fed_funds = get_fred("FEDFUNDS", decimals=2)  # 실효 Fed Funds Rate
+        t2y       = get_fred("DGS2",     decimals=2)  # 2년물 국채 수익률
+        if fed_funds is None or t2y is None:
+            return None, None
+        gap = round(t2y - fed_funds, 2)
+        print(f"  [Fed Gap] 2Y={t2y}% - FEDFUNDS={fed_funds}% = {gap}%")
+        return gap, fed_funds
+    except Exception as e:
+        print(f"  [Fed Gap] 오류: {e}")
+        return None, None
+
+
+
     """
     나스닥 100 상위 7개 종목의 시가총액 비중 계산
     QQQ ETF의 totalAssets(AUM)을 나스닥100 전체 시총 근사치로 사용
@@ -103,6 +174,11 @@ def get_nasdaq_concentration():
 def collect():
     print(f"\n🔍 데이터 수집 시작: {datetime.now().isoformat()}\n")
 
+    # S&P RSI + 200MA (한 번에 수집)
+    sp500_rsi, sp500_ma200_dist = get_sp500_rsi()
+    # Fed Gap (한 번에 수집)
+    fed_gap, fed_funds_rate = get_fed_gap()
+
     data = {
         # VIX: 변동성 지수
         "vix": get_yahoo("^VIX"),
@@ -128,6 +204,18 @@ def collect():
         # Nasdaq 상위 7개 집중도 (%)
         "nasdaq_concentration": get_nasdaq_concentration(),
 
+        # S&P 500 RSI(14)
+        "sp500_rsi": sp500_rsi,
+
+        # S&P 500 200일 MA 대비 거리 (%)
+        "sp500_ma200_dist": sp500_ma200_dist,
+
+        # Fed Policy Gap: 2Y Treasury - Fed Funds Rate (%)
+        "fed_gap": fed_gap,
+
+        # 현재 Fed Funds Rate (%)
+        "fed_funds_rate": fed_funds_rate,
+
         # 메타
         "updated_at": datetime.now().isoformat(),
         "data_source": "FRED + Yahoo Finance",
@@ -135,7 +223,7 @@ def collect():
 
     # 수집 결과 요약
     success = sum(1 for v in data.values() if isinstance(v, (int, float)))
-    total = 8
+    total = 12
     print(f"\n✅ 수집 완료: {success}/{total} 지표")
 
     # 저장
