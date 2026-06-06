@@ -62,31 +62,35 @@ def get_yahoo(ticker, decimals=2):
 def get_nasdaq_concentration():
     """
     나스닥 100 상위 7개 종목의 시가총액 비중 계산
-    (AAPL, MSFT, NVDA, AMZN, GOOGL, META, TSLA / QQQ AUM)
+    QQQ ETF의 totalAssets(AUM)을 나스닥100 전체 시총 근사치로 사용
     """
     TOP7 = ["AAPL", "MSFT", "NVDA", "AMZN", "GOOGL", "META", "TSLA"]
     try:
         top7_cap = 0.0
         for t in TOP7:
-            info = yf.Ticker(t).info
-            cap = info.get("marketCap", 0)
+            cap = yf.Ticker(t).info.get("marketCap", 0) or 0
             top7_cap += cap
 
-        # QQQ 총 AUM (순자산)
-        qqq_info = yf.Ticker("QQQ").info
-        qqq_aum = qqq_info.get("totalAssets", None)
+        # QQQ AUM: 나스닥100 전체 시총의 약 1/300 수준
+        # → 나스닥100 시총 직접 추정: 구성종목 상위20개 시총 합 / 0.6 (상위20개가 약 60%)
+        TOP20 = ["AAPL","MSFT","NVDA","AMZN","GOOGL","META","TSLA",
+                 "AVGO","COST","NFLX","AMD","ADBE","QCOM","INTC",
+                 "INTU","AMAT","MU","LRCX","KLAC","PANW"]
+        top20_cap = sum(
+            (yf.Ticker(t).info.get("marketCap", 0) or 0) for t in TOP20
+        )
+        if top20_cap == 0:
+            return None
 
-        if not qqq_aum or qqq_aum == 0:
-            # QQQ AUM을 못 가져오면 나스닥 100 전체 시가총액으로 근사
-            ndx_cap = sum(
-                yf.Ticker(t).info.get("marketCap", 0)
-                for t in TOP7
-            )
-            # Top7이 대략 나스닥 100의 40-50%이므로 전체 추정
-            qqq_aum = top7_cap / 0.45
+        # 나스닥100 전체 시총 추정 (상위 20개가 약 60% 차지)
+        ndx_total_est = top20_cap / 0.60
 
-        pct = round(top7_cap / qqq_aum * 100, 1)
-        print(f"  [Nasdaq Conc] {pct}%")
+        pct = round(top7_cap / ndx_total_est * 100, 1)
+        print(f"  [Nasdaq Conc] top7={top7_cap/1e12:.1f}T, ndx_est={ndx_total_est/1e12:.1f}T → {pct}%")
+
+        # 비현실적 값 방지 (0~100% 범위)
+        if pct <= 0 or pct > 100:
+            return None
         return pct
     except Exception as e:
         print(f"  [Nasdaq Conc] 오류: {e}")
@@ -103,8 +107,8 @@ def collect():
         # VIX: 변동성 지수
         "vix": get_yahoo("^VIX"),
 
-        # HY OAS: 하이일드 신용 스프레드 (basis points)
-        "hy_oas": get_fred("BAMLH0A0HYM2", decimals=1),
+        # HY OAS: FRED는 % 단위 → ×100 해서 bp로 변환
+        "hy_oas": get_fred("BAMLH0A0HYM2", multiplier=100, decimals=1),
 
         # ON RRP: 연준 역레포 (Billions → Trillions)
         "on_rrp": get_fred("RRPONTSYD", divisor=1_000),
