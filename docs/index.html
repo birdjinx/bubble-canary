@@ -254,43 +254,64 @@ function recalc() {
 // SCORING
 // ═══════════════════════════════════════════════════════════
 function score(data) {
-  const b = { vix:0, credit:0, yc:0, liq:0, conc:0, dxy:0, regime:0 };
+  const b = { vix:0, credit:0, yc:0, liq:0, conc:0, dxy:0, sp_rsi:0, fed_gap:0, regime:0 };
 
-  // VIX (높을수록 위험)
-  if      (data.vix >= 40) b.vix = 25;
-  else if (data.vix >= 30) b.vix = 18;
-  else if (data.vix >= 20) b.vix = 10;
-  else if (data.vix >= 15) b.vix = 5;
+  // VIX (max 20)
+  if      (data.vix >= 40) b.vix = 20;
+  else if (data.vix >= 30) b.vix = 14;
+  else if (data.vix >= 20) b.vix = 8;
+  else if (data.vix >= 15) b.vix = 4;
 
-  // HY OAS bp (높을수록 위험)
-  if      (data.hy_oas >= 550) b.credit = 25;
-  else if (data.hy_oas >= 450) b.credit = 18;
-  else if (data.hy_oas >= 350) b.credit = 10;
-  else if (data.hy_oas >= 250) b.credit = 4;
+  // HY OAS bp (max 20)
+  if      (data.hy_oas >= 550) b.credit = 20;
+  else if (data.hy_oas >= 450) b.credit = 14;
+  else if (data.hy_oas >= 350) b.credit = 8;
+  else if (data.hy_oas >= 250) b.credit = 3;
 
-  // Yield Curve bp (낮을수록 / 마이너스일수록 위험)
-  if      (data.yield_curve_10y2y < -200) b.yc = 20;
-  else if (data.yield_curve_10y2y < -100) b.yc = 12;
-  else if (data.yield_curve_10y2y <    0) b.yc = 6;
+  // Yield Curve bp (max 15)
+  if      (data.yield_curve_10y2y < -200) b.yc = 15;
+  else if (data.yield_curve_10y2y < -100) b.yc = 10;
+  else if (data.yield_curve_10y2y <    0) b.yc = 5;
 
-  // Net Liquidity
+  // Net Liquidity (max 18)
   const nl = (data.fed_balance_sheet || 0) - (data.tga || 0) - (data.on_rrp || 0);
-  if      (nl < 6.0) b.liq = 20;
-  else if (nl < 6.5) b.liq = 12;
-  else if (nl < 7.0) b.liq = 6;
+  if      (nl < 6.0) b.liq = 18;
+  else if (nl < 6.5) b.liq = 11;
+  else if (nl < 7.0) b.liq = 5;
 
-  // Nasdaq 집중도 (높을수록 위험)
-  if      (data.nasdaq_concentration >= 50) b.conc = 20;
-  else if (data.nasdaq_concentration >= 40) b.conc = 12;
-  else if (data.nasdaq_concentration >= 30) b.conc = 8;
+  // Nasdaq 집중도 (max 12)
+  if      (data.nasdaq_concentration >= 50) b.conc = 12;
+  else if (data.nasdaq_concentration >= 40) b.conc = 8;
+  else if (data.nasdaq_concentration >= 30) b.conc = 4;
 
-  // DXY (높을수록 위험)
-  if      (data.dxy >= 115) b.dxy = 15;
-  else if (data.dxy >= 105) b.dxy = 10;
-  else if (data.dxy >= 100) b.dxy = 5;
+  // DXY (max 10)
+  if      (data.dxy >= 115) b.dxy = 10;
+  else if (data.dxy >= 105) b.dxy = 7;
+  else if (data.dxy >= 100) b.dxy = 3;
 
-  // Regime Shift 보너스
-  if (b.liq > 12 && b.credit > 12 && b.vix > 12) b.regime = 15;
+  // S&P 500 RSI (max 18)
+  // 과매도(급락 진행) 또는 극도 과매수(버블 정점) 모두 위험
+  if (data.sp500_rsi != null) {
+    if      (data.sp500_rsi <= 20) b.sp_rsi = 18;  // 패닉 매도
+    else if (data.sp500_rsi <= 30) b.sp_rsi = 12;  // 과매도 (하락 진행)
+    else if (data.sp500_rsi <= 40) b.sp_rsi = 5;   // 약세 시작
+    else if (data.sp500_rsi >= 80) b.sp_rsi = 15;  // 극도 과매수 (버블)
+    else if (data.sp500_rsi >= 70) b.sp_rsi = 8;   // 과매수 (경계)
+  }
+
+  // Fed Policy Gap: 2Y Treasury - Fed Funds Rate (max 12)
+  // 큰 음수 = 시장이 공격적 인하 기대 = 경기 위기 신호
+  // 큰 양수 = 추가 인상 기대 = 금리 충격 위험
+  if (data.fed_gap != null) {
+    if      (data.fed_gap < -2.0) b.fed_gap = 12;  // 위기 수준 인하 기대
+    else if (data.fed_gap < -1.0) b.fed_gap = 8;   // 적극 인하 기대
+    else if (data.fed_gap < -0.5) b.fed_gap = 4;   // 인하 기대
+    else if (data.fed_gap >  1.5) b.fed_gap = 10;  // 공격적 인상 기대
+    else if (data.fed_gap >  0.75) b.fed_gap = 5;  // 인상 기대
+  }
+
+  // Regime Shift 보너스 (여러 지표 동시 경고)
+  if (b.liq >= 11 && b.credit >= 8 && b.vix >= 8) b.regime = 15;
 
   const total = Math.min(100, Object.values(b).reduce((a, v) => a + v, 0));
   return {
@@ -351,14 +372,46 @@ function diagnose(data, s) {
   else if (data.nasdaq_concentration >= 40) items.push(`Nasdaq 집중도 ${data.nasdaq_concentration.toFixed(1)}%: 상위 종목 집중도가 높습니다.`);
   else                                       items.push(`Nasdaq 집중도 ${data.nasdaq_concentration.toFixed(1)}%: 집중도가 적정 수준입니다.`);
 
+  // S&P 500 RSI 해석
+  if (data.sp500_rsi != null) {
+    if      (data.sp500_rsi <= 20) items.push(`S&P RSI ${data.sp500_rsi}: 패닉 매도 구간입니다. 급락이 진행 중입니다.`);
+    else if (data.sp500_rsi <= 30) items.push(`S&P RSI ${data.sp500_rsi}: 과매도 구간입니다. 하락이 상당히 진행되었습니다.`);
+    else if (data.sp500_rsi <= 40) items.push(`S&P RSI ${data.sp500_rsi}: 약세 신호입니다. 조정이 시작되고 있습니다.`);
+    else if (data.sp500_rsi <= 60) items.push(`S&P RSI ${data.sp500_rsi}: 중립 구간입니다. 추세 확인이 필요합니다.`);
+    else if (data.sp500_rsi <= 70) items.push(`S&P RSI ${data.sp500_rsi}: 강세 구간입니다. 정상 범위입니다.`);
+    else if (data.sp500_rsi <= 80) items.push(`S&P RSI ${data.sp500_rsi}: 과매수 구간입니다. 조정 가능성이 높아졌습니다.`);
+    else                            items.push(`S&P RSI ${data.sp500_rsi}: 극도 과매수입니다. 버블 정점 가능성을 주의하세요.`);
+    if (data.sp500_ma200_dist != null) {
+      const d = data.sp500_ma200_dist;
+      if      (d > 15)  items.push(`200일 MA 대비 +${d}%: 장기 평균 대비 크게 상승. 과열 신호.`);
+      else if (d > 5)   items.push(`200일 MA 대비 +${d}%: 장기 상승 추세 유지 중입니다.`);
+      else if (d > -5)  items.push(`200일 MA 대비 ${d}%: 장기 평균 부근입니다.`);
+      else              items.push(`200일 MA 대비 ${d}%: 장기 평균 하회. 약세장 시작 신호입니다.`);
+    }
+  }
+
+  // Fed Gap 해석
+  if (data.fed_gap != null) {
+    const g = data.fed_gap, r = data.fed_funds_rate;
+    if      (g < -2.0) items.push(`Fed Gap ${g}%: 시장이 대규모 금리 인하를 기대합니다. 경기 위기 수준 신호입니다.`);
+    else if (g < -1.0) items.push(`Fed Gap ${g}%: 시장이 적극적 금리 인하를 기대합니다. 경기 둔화 신호입니다.`);
+    else if (g < -0.5) items.push(`Fed Gap ${g}%: 시장이 완만한 금리 인하를 기대합니다.`);
+    else if (g <  0.5) items.push(`Fed Gap ${g}%: 금리 정책에 대한 시장 기대가 중립적입니다.`);
+    else if (g <  1.5) items.push(`Fed Gap ${g}%: 시장이 추가 금리 인상을 기대합니다.`);
+    else               items.push(`Fed Gap ${g}%: 시장이 공격적 인상을 기대합니다. 금리 충격 위험이 있습니다.`);
+    if (r != null) items.push(`현재 Fed Funds Rate: ${r}%`);
+  }
+
   // 위험 / 안정 요인
   const risks   = [];
   const stables = [];
-  if (s.b.vix > 10)    risks.push('변동성'); else stables.push('변동성');
-  if (s.b.credit > 10) risks.push('신용');   else stables.push('신용');
+  if (s.b.vix > 8)     risks.push('변동성'); else stables.push('변동성');
+  if (s.b.credit > 8)  risks.push('신용');   else stables.push('신용');
   if (s.b.liq > 10)    risks.push('유동성'); else stables.push('유동성');
-  if (s.b.yc > 6)      risks.push('경기신호');
-  if (s.b.conc > 8)    risks.push('집중도');
+  if (s.b.yc > 5)      risks.push('경기신호');
+  if (s.b.conc > 4)    risks.push('집중도');
+  if (s.b.sp_rsi > 5)  risks.push('S&P 모멘텀'); else if (data.sp500_rsi != null) stables.push('S&P 모멘텀');
+  if (s.b.fed_gap > 4) risks.push('금리 경로');  else if (data.fed_gap != null) stables.push('금리 경로');
 
   return { overall, items, risks, stables };
 }
@@ -431,6 +484,8 @@ function render(data) {
           <div style="padding:4px 6px;background:rgba(0,0,0,0.03);border-radius:4px;"><span style="color:#6b7280;">유동성</span><br/><strong>${s.b.liq}</strong></div>
           <div style="padding:4px 6px;background:rgba(0,0,0,0.03);border-radius:4px;"><span style="color:#6b7280;">집중도</span><br/><strong>${s.b.conc}</strong></div>
           <div style="padding:4px 6px;background:rgba(0,0,0,0.03);border-radius:4px;"><span style="color:#6b7280;">달러</span><br/><strong>${s.b.dxy}</strong></div>
+          <div style="padding:4px 6px;background:rgba(0,0,0,0.03);border-radius:4px;"><span style="color:#6b7280;">S&P 모멘텀</span><br/><strong>${s.b.sp_rsi}</strong></div>
+          <div style="padding:4px 6px;background:rgba(0,0,0,0.03);border-radius:4px;"><span style="color:#6b7280;">금리 경로</span><br/><strong>${s.b.fed_gap}</strong></div>
         </div>
       </div>
     </div>`;
@@ -453,18 +508,23 @@ function render(data) {
   `;
   dp.classList.remove('hidden');
 
-  // Metrics Grid (핵심 5개)
+  // Metrics Grid (7개)
   const metrics = [
-    { key:'vix',                  label:'VIX',      unit:'',   warn:25,   crit:40,  lower:false },
-    { key:'hy_oas',               label:'HY OAS',   unit:'bp', warn:350,  crit:550, lower:false },
-    { key:'yield_curve_10y2y',    label:'10Y-2Y',   unit:'bp', warn:-100, crit:-200,lower:true  },
-    { key:'dxy',                  label:'DXY',      unit:'',   warn:105,  crit:115, lower:false },
-    { key:'nasdaq_concentration', label:'Nasdaq',   unit:'%',  warn:40,   crit:50,  lower:false },
+    { key:'vix',                  label:'VIX',          unit:'',   warn:20,   crit:30,  lower:false },
+    { key:'hy_oas',               label:'HY OAS',       unit:'bp', warn:350,  crit:550, lower:false },
+    { key:'yield_curve_10y2y',    label:'10Y-2Y',       unit:'bp', warn:-100, crit:-200,lower:true  },
+    { key:'dxy',                  label:'DXY',          unit:'',   warn:105,  crit:115, lower:false },
+    { key:'nasdaq_concentration', label:'Nasdaq',       unit:'%',  warn:40,   crit:50,  lower:false },
+    { key:'sp500_rsi',            label:'S&P RSI',      unit:'',   warn:70,   crit:80,  lower:false,
+      warn2:40, crit2:30, lower2:true },   // 과매도도 경고
+    { key:'fed_gap',              label:'Fed Gap',      unit:'%',  warn:-1.0, crit:-2.0,lower:true,
+      warn3:0.75, crit3:1.5, lower3:false }, // 인상 기대도 경고
   ];
 
   document.getElementById('metricsGrid').innerHTML = metrics.map(m => {
     const v = data[m.key];
     let badge = 'normal';
+    // 주 방향 체크
     if (m.lower) {
       if (m.crit != null && v <= m.crit) badge = 'critical';
       else if (m.warn != null && v <= m.warn) badge = 'warning';
@@ -472,15 +532,25 @@ function render(data) {
       if (m.crit != null && v >= m.crit) badge = 'critical';
       else if (m.warn != null && v >= m.warn) badge = 'warning';
     }
+    // 반대 방향 체크 (RSI 과매도, Fed Gap 인상 기대)
+    if (badge === 'normal' && m.lower2 != null) {
+      if (m.crit2 != null && v <= m.crit2) badge = 'critical';
+      else if (m.warn2 != null && v <= m.warn2) badge = 'warning';
+    }
+    if (badge === 'normal' && m.crit3 != null) {
+      if (v >= m.crit3) badge = 'critical';
+      else if (m.warn3 != null && v >= m.warn3) badge = 'warning';
+    }
     const bs = badge==='critical'
       ? 'background:#fee2e2;color:#b91c1c;border:1px solid #fca5a5;'
       : badge==='warning'
       ? 'background:#fef3c7;color:#92400e;border:1px solid #fde68a;'
       : 'background:#dbeafe;color:#1e40af;border:1px solid #bfdbfe;';
     const bt = badge==='critical'?'⚠️ 위험':badge==='warning'?'⚡ 주의':'✓ 정상';
+    const display = v != null ? Number(v).toFixed(m.key==='fed_gap'?2:1) : '-';
     return `<div class="metric-card">
       <div class="metric-label">${m.label}</div>
-      <div class="metric-value">${v!=null?Number(v).toFixed(1):'-'} <span style="font-size:9px;font-weight:400;color:#6b7280;">${m.unit}</span></div>
+      <div class="metric-value">${display} <span style="font-size:9px;font-weight:400;color:#6b7280;">${m.unit}</span></div>
       <span style="${bs}padding:2px 7px;border-radius:4px;font-size:8px;font-weight:600;">${bt}</span>
     </div>`;
   }).join('');
