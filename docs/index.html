@@ -84,6 +84,19 @@
     .metric-badge.warning { background: #fef3c7; color: #92400e; }
     .metric-badge.critical { background: #fee2e2; color: #b91c1c; }
 
+    /* ── 그룹 카드 레이아웃 ── */
+    .metrics-groups { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+    .metric-group { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 10px 12px; }
+    .group-header { display: flex; align-items: center; gap: 5px; font-size: 10px; font-weight: 600; color: #6b7280; margin-bottom: 10px; padding-bottom: 7px; border-bottom: 1px solid #e5e7eb; }
+    .metric-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .metric-pair-item .metric-label { font-size: 9px; color: #6b7280; margin-bottom: 2px; }
+    .metric-pair-item .metric-value { font-size: 15px; font-weight: 700; margin-bottom: 3px; }
+    .fed-gap-row { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 10px 14px; display: flex; align-items: center; gap: 0; }
+    .fed-gap-main { min-width: 110px; }
+    .fed-gap-divider { width: 1px; background: #d1fae5; margin: 0 16px; align-self: stretch; }
+    .fed-gap-context { flex: 1; font-size: 10px; color: #6b7280; line-height: 1.6; }
+    .fed-gap-context strong { color: #374151; font-weight: 600; }
+
     .net-liq { padding: 12px 16px; background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 8px; }
 
     .footer { text-align: center; font-size: 8px; color: #9ca3af; padding: 16px 0; font-family: monospace; }
@@ -171,7 +184,8 @@
   <div id="alertBox"></div>
   <div id="scoreCard" class="score-card hidden"></div>
   <div id="diagnosisPanel" class="diagnosis-panel hidden"></div>
-  <div id="metricsGrid" class="metrics-grid"></div>
+  <div id="metricsGrid"></div>
+  <div id="fedGapRow" class="fed-gap-row hidden"></div>
   <div id="netLiqPanel" class="net-liq hidden"></div>
 </div>
 
@@ -508,52 +522,106 @@ function render(data) {
   `;
   dp.classList.remove('hidden');
 
-  // Metrics Grid (7개)
-  const metrics = [
-    { key:'vix',                  label:'VIX',          unit:'',   warn:20,   crit:30,  lower:false },
-    { key:'hy_oas',               label:'HY OAS',       unit:'bp', warn:350,  crit:550, lower:false },
-    { key:'yield_curve_10y2y',    label:'10Y-2Y',       unit:'bp', warn:-100, crit:-200,lower:true  },
-    { key:'dxy',                  label:'DXY',          unit:'',   warn:105,  crit:115, lower:false },
-    { key:'nasdaq_concentration', label:'Nasdaq',       unit:'%',  warn:40,   crit:50,  lower:false },
-    { key:'sp500_rsi',            label:'S&P RSI',      unit:'',   warn:70,   crit:80,  lower:false,
-      warn2:40, crit2:30, lower2:true },   // 과매도도 경고
-    { key:'fed_gap',              label:'Fed Gap',      unit:'%',  warn:-1.0, crit:-2.0,lower:true,
-      warn3:0.75, crit3:1.5, lower3:false }, // 인상 기대도 경고
-  ];
-
-  document.getElementById('metricsGrid').innerHTML = metrics.map(m => {
-    const v = data[m.key];
+  // ── 배지 생성 헬퍼 ──
+  function makeBadge(v, warn, crit, lower, warn2, crit2, lower2, warn3, crit3) {
     let badge = 'normal';
-    // 주 방향 체크
-    if (m.lower) {
-      if (m.crit != null && v <= m.crit) badge = 'critical';
-      else if (m.warn != null && v <= m.warn) badge = 'warning';
+    if (v == null) return badge;
+    if (lower) {
+      if (crit != null && v <= crit) badge = 'critical';
+      else if (warn != null && v <= warn) badge = 'warning';
     } else {
-      if (m.crit != null && v >= m.crit) badge = 'critical';
-      else if (m.warn != null && v >= m.warn) badge = 'warning';
+      if (crit != null && v >= crit) badge = 'critical';
+      else if (warn != null && v >= warn) badge = 'warning';
     }
-    // 반대 방향 체크 (RSI 과매도, Fed Gap 인상 기대)
-    if (badge === 'normal' && m.lower2 != null) {
-      if (m.crit2 != null && v <= m.crit2) badge = 'critical';
-      else if (m.warn2 != null && v <= m.warn2) badge = 'warning';
+    if (badge === 'normal' && lower2 != null) {
+      if (crit2 != null && v <= crit2) badge = 'critical';
+      else if (warn2 != null && v <= warn2) badge = 'warning';
     }
-    if (badge === 'normal' && m.crit3 != null) {
-      if (v >= m.crit3) badge = 'critical';
-      else if (m.warn3 != null && v >= m.warn3) badge = 'warning';
+    if (badge === 'normal' && crit3 != null) {
+      if (v >= crit3) badge = 'critical';
+      else if (warn3 != null && v >= warn3) badge = 'warning';
     }
-    const bs = badge==='critical'
+    return badge;
+  }
+  function badgeStyle(badge) {
+    return badge==='critical'
       ? 'background:#fee2e2;color:#b91c1c;border:1px solid #fca5a5;'
       : badge==='warning'
       ? 'background:#fef3c7;color:#92400e;border:1px solid #fde68a;'
       : 'background:#dbeafe;color:#1e40af;border:1px solid #bfdbfe;';
-    const bt = badge==='critical'?'⚠️ 위험':badge==='warning'?'⚡ 주의':'✓ 정상';
-    const display = v != null ? Number(v).toFixed(m.key==='fed_gap'?2:1) : '-';
-    return `<div class="metric-card">
-      <div class="metric-label">${m.label}</div>
-      <div class="metric-value">${display} <span style="font-size:9px;font-weight:400;color:#6b7280;">${m.unit}</span></div>
-      <span style="${bs}padding:2px 7px;border-radius:4px;font-size:8px;font-weight:600;">${bt}</span>
+  }
+  function badgeText(badge) {
+    return badge==='critical'?'⚠️ 위험':badge==='warning'?'⚡ 주의':'✓ 정상';
+  }
+  function metricItem(label, val, unit, badge, decimals=1) {
+    const disp = val != null ? Number(val).toFixed(decimals) : '–';
+    return `<div class="metric-pair-item">
+      <div class="metric-label">${label}</div>
+      <div class="metric-value">${disp}<span style="font-size:9px;font-weight:400;color:#6b7280;margin-left:2px;">${unit}</span></div>
+      <span style="${badgeStyle(badge)}padding:2px 7px;border-radius:4px;font-size:8px;font-weight:600;">${badgeText(badge)}</span>
     </div>`;
-  }).join('');
+  }
+
+  // ── A안: 3그룹 + 금리 경로 행 ──
+  const vixBadge    = makeBadge(data.vix,   20,  30,  false);
+  const hyBadge     = makeBadge(data.hy_oas, 350, 550, false);
+  const ycBadge     = makeBadge(data.yield_curve_10y2y, -100, -200, true);
+  const dxyBadge    = makeBadge(data.dxy,   105, 115, false);
+  const nasBadge    = makeBadge(data.nasdaq_concentration, 40, 50, false);
+  const rsiBadge    = makeBadge(data.sp500_rsi, 70, 80, false, 40, 30, true);
+  const fedBadge    = makeBadge(data.fed_gap, -1.0, -2.0, true, null, null, null, 0.75, 1.5);
+
+  document.getElementById('metricsGrid').innerHTML = `
+    <div class="metrics-groups">
+      <div class="metric-group">
+        <div class="group-header">📊 시장 심리</div>
+        <div class="metric-pair">
+          ${metricItem('VIX', data.vix, '', vixBadge)}
+          ${metricItem('S&P RSI', data.sp500_rsi, '', rsiBadge)}
+        </div>
+      </div>
+      <div class="metric-group">
+        <div class="group-header">💳 신용 · 경기</div>
+        <div class="metric-pair">
+          ${metricItem('HY OAS', data.hy_oas, 'bp', hyBadge, 0)}
+          ${metricItem('10Y-2Y', data.yield_curve_10y2y, 'bp', ycBadge, 0)}
+        </div>
+      </div>
+      <div class="metric-group">
+        <div class="group-header">🌐 구조 · 환경</div>
+        <div class="metric-pair">
+          ${metricItem('DXY', data.dxy, '', dxyBadge)}
+          ${metricItem('Nasdaq', data.nasdaq_concentration, '%', nasBadge)}
+        </div>
+      </div>
+    </div>`;
+
+  // ── 금리 경로 전용 행 ──
+  const gapVal  = data.fed_gap != null ? data.fed_gap.toFixed(2) : '–';
+  const ffr     = data.fed_funds_rate != null ? data.fed_funds_rate.toFixed(2) : '–';
+  const t2y     = data.fed_gap != null && data.fed_funds_rate != null
+    ? (data.fed_gap + data.fed_funds_rate).toFixed(2) : '–';
+  const gapDir  = data.fed_gap == null ? '–'
+    : data.fed_gap < -1.0 ? '시장이 대규모 인하를 기대합니다 — 경기 위기 신호'
+    : data.fed_gap < -0.5 ? '시장이 금리 인하를 기대합니다 — 경기 둔화 신호'
+    : data.fed_gap <  0.5 ? '금리 정책에 대한 시장 기대가 중립적입니다'
+    : data.fed_gap <  1.5 ? '시장이 추가 인상을 소폭 기대합니다'
+    : '시장이 공격적 인상을 기대합니다 — 금리 충격 위험';
+
+  const fgRow = document.getElementById('fedGapRow');
+  fgRow.innerHTML = `
+    <div class="fed-gap-main">
+      <div style="font-size:10px;font-weight:600;color:#6b7280;margin-bottom:8px;">🏛️ 금리 경로</div>
+      <div style="font-size:9px;color:#6b7280;margin-bottom:2px;">Fed Gap</div>
+      <div style="font-size:16px;font-weight:700;color:#111827;margin-bottom:4px;">${gapVal}<span style="font-size:9px;font-weight:400;color:#6b7280;margin-left:2px;">%</span></div>
+      <span style="${badgeStyle(fedBadge)}padding:2px 7px;border-radius:4px;font-size:8px;font-weight:600;">${badgeText(fedBadge)}</span>
+    </div>
+    <div class="fed-gap-divider"></div>
+    <div class="fed-gap-context">
+      <div style="margin-bottom:5px;"><strong>계산식</strong> &nbsp; 2Y 국채 ${t2y}% &minus; Fed Funds ${ffr}% = ${gapVal}%</div>
+      <div><strong>해석</strong> &nbsp; ${gapDir}</div>
+    </div>`;
+  fgRow.classList.remove('hidden');
 
   // Net Liquidity 계산식 패널
   const nlv = parseFloat(s.net_liq);
