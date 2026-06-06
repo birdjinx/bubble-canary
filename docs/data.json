@@ -7,6 +7,10 @@
   "yield_curve_10y2y": 38.0,
   "dxy": 100.07,
   "nasdaq_concentration": 46.7,
-  "updated_at": "2026-06-06T11:45:35.982445",
+  "sp500_rsi": 48.8,
+  "sp500_ma200_dist": 7.7,
+  "fed_gap": 0.42,
+  "fed_funds_rate": 3.63,
+  "updated_at": "2026-06-06T16:09:57.233714",
   "data_source": "FRED + Yahoo Finance"
 }
