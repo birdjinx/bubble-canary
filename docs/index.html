@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>금융 리스크 모니터 v8</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #fff; color: #111827; }
+
+    .header { position: sticky; top: 0; z-index: 40; border-bottom: 1px solid #e5e7eb; background: rgba(255,255,255,0.95); }
+    .header-inner { max-width: 1100px; margin: 0 auto; padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; }
+    .header-title { font-size: 16px; font-weight: 600; }
+    .header-sub { font-size: 9px; color: #6b7280; letter-spacing: 1px; margin-bottom: 2px; }
+    .header-meta { font-size: 9px; color: #6b7280; text-align: right; }
+    .header-icon { cursor: pointer; font-size: 16px; padding: 4px 8px; }
+
+    .modal { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.3); z-index: 50; align-items: center; justify-content: center; }
+    .modal.open { display: flex; }
+    .modal-content { background: white; border-radius: 10px; padding: 20px; width: 92%; max-width: 420px; box-shadow: 0 20px 25px rgba(0,0,0,0.15); max-height: 88vh; overflow-y: auto; }
+    .modal-title { font-size: 14px; font-weight: 600; margin-bottom: 12px; }
+    .modal-close { position: absolute; top: 10px; right: 10px; cursor: pointer; font-size: 18px; color: #6b7280; }
+
+    .form-group { margin-bottom: 10px; }
+    .form-label { font-size: 10px; color: #6b7280; font-weight: 500; margin-bottom: 3px; display: block; }
+    .form-input { width: 100%; padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 12px; font-family: inherit; }
+    .form-input:focus { outline: none; border-color: #3b82f6; }
+    .form-hint { font-size: 9px; color: #9ca3af; margin-top: 2px; }
+
+    .btn-group { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px; }
+    button { padding: 8px 14px; border: 1px solid #cbd5e1; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 500; background: white; }
+    button:hover { background: #f3f4f6; }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-primary { background: #3b82f6; color: white; border-color: #3b82f6; }
+
+    .control-panel { background: #f9fafb; border-bottom: 1px solid #e5e7eb; padding: 10px 16px; }
+    .control-inner { max-width: 1100px; margin: 0 auto; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+    .ctrl-btn { padding: 9px 12px; background: white; border: 1px solid #cbd5e1; border-radius: 6px; cursor: pointer; font-size: 11px; text-align: left; }
+    .ctrl-btn:hover { background: #f3f4f6; }
+    .ctrl-btn:disabled { opacity: 0.5; }
+    .btn-title { font-weight: 600; font-size: 11px; margin-bottom: 1px; }
+    .btn-cost { font-size: 9px; color: #6b7280; }
+
+    .status-bar { max-width: 1100px; margin: 0 auto; padding: 5px 16px; font-size: 10px; color: #6b7280; display: flex; justify-content: space-between; }
+    .status-ok { color: #16a34a; }
+    .status-warn { color: #f59e0b; }
+    .status-error { color: #dc2626; }
+
+    .main { max-width: 1100px; margin: 0 auto; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+
+    .alert { padding: 9px 12px; border-radius: 6px; border-left: 3px solid; font-size: 10px; }
+    .alert.warn { border-color: #f59e0b; background: #fef3c7; color: #854d0e; }
+    .alert.error { border-color: #dc2626; background: #fee2e2; color: #b91c1c; }
+    .alert.info { border-color: #3b82f6; background: #eff6ff; color: #1e40af; }
+
+    .score-card { padding: 16px; border-radius: 8px; border: 2px solid; }
+    .score-card.critical { border-color: #fca5a5; background: #fef2f2; }
+    .score-card.warning { border-color: #fde68a; background: #fefce8; }
+    .score-card.caution { border-color: #bfdbfe; background: #eff6ff; }
+    .score-card.stable { border-color: #bbf7d0; background: #f0fdf4; }
+
+    .score-header { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 10px; }
+    .score-label { font-size: 9px; color: #6b7280; margin-bottom: 2px; }
+    .score-title { font-size: 14px; font-weight: 700; }
+    .score-number { font-size: 40px; font-family: monospace; font-weight: 700; line-height: 1; }
+    .score-bar { width: 100%; height: 6px; background: #e5e7eb; border-radius: 3px; overflow: hidden; margin: 8px 0; }
+    .score-bar-fill { height: 100%; border-radius: 3px; transition: width 800ms ease; }
+
+    .breakdown { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 10px; }
+    .breakdown-item { padding: 6px 8px; background: rgba(0,0,0,0.03); border-radius: 4px; font-size: 9px; }
+    .breakdown-label { color: #6b7280; margin-bottom: 2px; }
+    .breakdown-value { font-size: 13px; font-weight: 700; }
+
+    .diagnosis-panel { padding: 12px 14px; background: linear-gradient(135deg, #fffbeb, #fef9ec); border: 1px solid #fde68a; border-radius: 8px; font-size: 10px; line-height: 1.65; }
+    .diagnosis-section { margin-bottom: 10px; padding-bottom: 10px; border-bottom: 1px solid rgba(253,230,138,0.5); }
+    .diagnosis-section:last-child { border-bottom: none; margin-bottom: 0; }
+    .diagnosis-item { padding-left: 12px; position: relative; margin-bottom: 4px; }
+    .diagnosis-item:before { content: '·'; position: absolute; left: 3px; color: #92400e; }
+
+    .metrics-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(125px, 1fr)); gap: 8px; }
+    .metric-card { padding: 10px; background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 6px; font-size: 9px; }
+    .metric-label { color: #6b7280; margin-bottom: 3px; }
+    .metric-value { font-size: 14px; font-weight: 700; margin-bottom: 4px; }
+    .metric-badge { display: inline-block; padding: 1px 7px; border-radius: 3px; font-size: 8px; font-weight: 600; }
+    .metric-badge.normal { background: #dbeafe; color: #1e40af; }
+    .metric-badge.warning { background: #fef3c7; color: #92400e; }
+    .metric-badge.critical { background: #fee2e2; color: #b91c1c; }
+
+    .net-liq { padding: 10px 14px; background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 6px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; font-size: 9px; }
+    .nl-label { color: #6b7280; margin-bottom: 2px; }
+    .nl-value { font-size: 12px; font-weight: 700; }
+
+    .footer { text-align: center; font-size: 8px; color: #9ca3af; padding: 16px 0; font-family: monospace; }
+    .hidden { display: none; }
+    .spinner-mini { display: inline-block; width: 12px; height: 12px; border: 2px solid #e5e7eb; border-top-color: #3b82f6; border-radius: 50%; animation: spin 0.8s linear infinite; vertical-align: middle; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+
+<!-- Header -->
+<div class="header">
+  <div class="header-inner">
+    <div>
+      <div class="header-sub">US FINANCIAL STRESS · v8</div>
+      <div class="header-title">금융 리스크 모니터</div>
+    </div>
+    <div style="display:flex; align-items:center; gap:10px;">
+      <div class="header-meta">
+        <div id="lastUpdated"></div>
+        <div id="dataSource" style="margin-top:1px;"></div>
+      </div>
+      <span class="header-icon" onclick="openSettings()">⚙️</span>
+    </div>
+  </div>
+</div>
+
+<!-- Settings Modal -->
+<div id="settingsModal" class="modal">
+  <div class="modal-content">
+    <div style="position:relative;">
+      <div class="modal-title">⚙️ 설정</div>
+      <span class="modal-close" onclick="closeSettings()">✕</span>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Anthropic API Key (💬 분석 버튼용)</label>
+      <div style="position:relative;">
+        <input id="apiKeyInput" type="password" placeholder="sk-ant-..." class="form-input" style="padding-right:32px;">
+        <span style="position:absolute;right:8px;top:50%;transform:translateY(-50%);cursor:pointer;" onclick="toggleKey()">👁️</span>
+      </div>
+      <div class="form-hint">데이터 갱신에는 불필요. 분석 버튼에만 사용.</div>
+    </div>
+    <div class="btn-group">
+      <button class="btn-primary" onclick="saveSettings()">저장</button>
+      <button onclick="closeSettings()">닫기</button>
+    </div>
+  </div>
+</div>
+
+<!-- Claude Analysis Modal -->
+<div id="claudeModal" class="modal">
+  <div class="modal-content">
+    <div style="position:relative;">
+      <div class="modal-title">💬 Claude 심화 분석</div>
+      <span class="modal-close" onclick="document.getElementById('claudeModal').classList.remove('open')">✕</span>
+    </div>
+    <div id="claudeContent" style="font-size:11px;line-height:1.7;padding:4px 0;"></div>
+  </div>
+</div>
+
+<!-- Control Panel -->
+<div class="control-panel">
+  <div class="control-inner">
+    <button class="ctrl-btn" onclick="loadData()">
+      <div class="btn-title">🔄 데이터 로드</div>
+      <div class="btn-cost">GitHub · 무료</div>
+    </button>
+    <button class="ctrl-btn" id="recalcBtn" onclick="recalc()" disabled>
+      <div class="btn-title">⚡ 재계산</div>
+      <div class="btn-cost">로컬 · 즉시</div>
+    </button>
+    <button class="ctrl-btn" id="claudeBtn" onclick="showAnalysis()" disabled>
+      <div class="btn-title">💬 분석</div>
+      <div class="btn-cost">Claude API</div>
+    </button>
+  </div>
+  <div class="status-bar">
+    <span id="statusMsg"></span>
+    <span id="apiStatus"></span>
+  </div>
+</div>
+
+<!-- Main -->
+<div class="main">
+  <div id="alertBox"></div>
+  <div id="scoreCard" class="score-card hidden"></div>
+  <div id="diagnosisPanel" class="diagnosis-panel hidden"></div>
+  <div id="metricsGrid" class="metrics-grid"></div>
+  <div id="netLiqPanel" class="net-liq hidden"></div>
+</div>
+
+<div class="footer">
+  데이터: FRED + Yahoo Finance · 매일 자동 수집 · 점수 계산: JS · v8
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════
+// CONFIG
+// ═══════════════════════════════════════════════════════════
+const DATA_URL = 'https://birdjinx.github.io/bubble-canary/data.json';
+const STORAGE_KEY = 'bcv8_';
+
+let RAW = null;   // 수집된 원본 데이터
+let SCORES = null;
+
+let CFG = {
+  apiKey: localStorage.getItem(STORAGE_KEY + 'key') || '',
+};
+
+// ═══════════════════════════════════════════════════════════
+// SETTINGS
+// ═══════════════════════════════════════════════════════════
+function openSettings() {
+  document.getElementById('apiKeyInput').value = CFG.apiKey;
+  document.getElementById('settingsModal').classList.add('open');
+}
+function closeSettings() {
+  document.getElementById('settingsModal').classList.remove('open');
+}
+function toggleKey() {
+  const i = document.getElementById('apiKeyInput');
+  i.type = i.type === 'password' ? 'text' : 'password';
+}
+function saveSettings() {
+  CFG.apiKey = document.getElementById('apiKeyInput').value.trim();
+  localStorage.setItem(STORAGE_KEY + 'key', CFG.apiKey);
+  document.getElementById('apiStatus').innerHTML = CFG.apiKey
+    ? '<span class="status-ok">✓ API 설정</span>'
+    : '<span style="color:#6b7280;">API Key 없음</span>';
+  closeSettings();
+}
+
+// ═══════════════════════════════════════════════════════════
+// DATA LOAD (GitHub Pages)
+// ═══════════════════════════════════════════════════════════
+async function loadData() {
+  setStatus('데이터 로드 중...');
+  try {
+    const res = await fetch(DATA_URL + '?t=' + Date.now());
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    RAW = await res.json();
+
+    // 캐시 저장
+    localStorage.setItem(STORAGE_KEY + 'data', JSON.stringify(RAW));
+
+    render(RAW);
+    setStatus('');
+  } catch (e) {
+    // 캐시 폴백
+    const cached = localStorage.getItem(STORAGE_KEY + 'data');
+    if (cached) {
+      RAW = JSON.parse(cached);
+      render(RAW);
+      setAlert('warn', '⚠️ GitHub 로드 실패 → 캐시 사용 중');
+    } else {
+      setAlert('error', '❌ ' + e.message);
+    }
+    setStatus('');
+  }
+}
+
+function recalc() {
+  if (!RAW) return;
+  render(RAW);
+}
+
+// ═══════════════════════════════════════════════════════════
+// SCORING
+// ═══════════════════════════════════════════════════════════
+function score(data) {
+  const b = { vix:0, credit:0, yc:0, liq:0, conc:0, dxy:0, regime:0 };
+
+  // VIX (높을수록 위험)
+  if      (data.vix >= 40) b.vix = 25;
+  else if (data.vix >= 30) b.vix = 18;
+  else if (data.vix >= 20) b.vix = 10;
+  else if (data.vix >= 15) b.vix = 5;
+
+  // HY OAS bp (높을수록 위험)
+  if      (data.hy_oas >= 550) b.credit = 25;
+  else if (data.hy_oas >= 450) b.credit = 18;
+  else if (data.hy_oas >= 350) b.credit = 10;
+  else if (data.hy_oas >= 250) b.credit = 4;
+
+  // Yield Curve bp (낮을수록 / 마이너스일수록 위험)
+  if      (data.yield_curve_10y2y < -200) b.yc = 20;
+  else if (data.yield_curve_10y2y < -100) b.yc = 12;
+  else if (data.yield_curve_10y2y <    0) b.yc = 6;
+
+  // Net Liquidity
+  const nl = (data.fed_balance_sheet || 0) - (data.tga || 0) - (data.on_rrp || 0);
+  if      (nl < 6.0) b.liq = 20;
+  else if (nl < 6.5) b.liq = 12;
+  else if (nl < 7.0) b.liq = 6;
+
+  // Nasdaq 집중도 (높을수록 위험)
+  if      (data.nasdaq_concentration >= 50) b.conc = 20;
+  else if (data.nasdaq_concentration >= 40) b.conc = 12;
+  else if (data.nasdaq_concentration >= 30) b.conc = 8;
+
+  // DXY (높을수록 위험)
+  if      (data.dxy >= 115) b.dxy = 15;
+  else if (data.dxy >= 105) b.dxy = 10;
+  else if (data.dxy >= 100) b.dxy = 5;
+
+  // Regime Shift 보너스
+  if (b.liq > 12 && b.credit > 12 && b.vix > 12) b.regime = 15;
+
+  const total = Math.min(100, Object.values(b).reduce((a, v) => a + v, 0));
+  return {
+    total: Math.round(total),
+    b,
+    level: total >= 70 ? 'CRITICAL' : total >= 50 ? 'WARNING' : total >= 30 ? 'CAUTION' : 'STABLE',
+    net_liq: nl.toFixed(2),
+  };
+}
+
+// ═══════════════════════════════════════════════════════════
+// DIAGNOSIS
+// ═══════════════════════════════════════════════════════════
+function diagnose(data, s) {
+  const nl = parseFloat(s.net_liq);
+
+  const overall = {
+    CRITICAL: '시장이 고위험 상태입니다. 포지션 전면 재검토가 필요합니다.',
+    WARNING:  '시장에 경고 신호가 있습니다. 위험 요인을 주의 깊게 모니터링하세요.',
+    CAUTION:  '시장이 다소 불안정합니다. 정기 점검을 유지하세요.',
+    STABLE:   '시장이 상대적으로 안정적입니다.',
+  }[s.level];
+
+  const items = [];
+
+  // VIX 해석
+  if (data.vix < 15)       items.push(`VIX ${data.vix.toFixed(1)}: 변동성이 매우 낮습니다. 시장이 차분합니다.`);
+  else if (data.vix < 20)  items.push(`VIX ${data.vix.toFixed(1)}: 변동성이 정상 범위입니다.`);
+  else if (data.vix < 30)  items.push(`VIX ${data.vix.toFixed(1)}: 변동성이 다소 높아지고 있습니다.`);
+  else                      items.push(`VIX ${data.vix.toFixed(1)}: 변동성이 높습니다. 시장 불안이 반영되었습니다.`);
+
+  // HY OAS 해석
+  if (data.hy_oas < 250)        items.push(`HY OAS ${data.hy_oas.toFixed(0)}bp: 신용 환경이 매우 양호합니다.`);
+  else if (data.hy_oas < 350)   items.push(`HY OAS ${data.hy_oas.toFixed(0)}bp: 신용 환경이 양호합니다.`);
+  else if (data.hy_oas < 450)   items.push(`HY OAS ${data.hy_oas.toFixed(0)}bp: 신용 스프레드가 중간 수준입니다.`);
+  else                           items.push(`HY OAS ${data.hy_oas.toFixed(0)}bp: 신용 위험이 증가했습니다.`);
+
+  // Yield Curve 해석
+  if (data.yield_curve_10y2y > 100)        items.push(`10Y-2Y +${data.yield_curve_10y2y.toFixed(0)}bp: 경기 확장 신호입니다.`);
+  else if (data.yield_curve_10y2y > 0)     items.push(`10Y-2Y +${data.yield_curve_10y2y.toFixed(0)}bp: 정상 경기 신호입니다.`);
+  else if (data.yield_curve_10y2y > -100)  items.push(`10Y-2Y ${data.yield_curve_10y2y.toFixed(0)}bp: 경기 신호가 약화되고 있습니다.`);
+  else                                      items.push(`10Y-2Y ${data.yield_curve_10y2y.toFixed(0)}bp: 경기 침체 우려 신호입니다.`);
+
+  // Net Liquidity 해석
+  if      (nl > 7.0)  items.push(`Net Liquidity ${nl}T$: 시장 유동성이 충분합니다.`);
+  else if (nl > 6.5)  items.push(`Net Liquidity ${nl}T$: 유동성이 정상 수준입니다.`);
+  else if (nl > 6.0)  items.push(`Net Liquidity ${nl}T$: 유동성이 다소 축소되고 있습니다.`);
+  else                items.push(`Net Liquidity ${nl}T$: 유동성이 크게 줄었습니다.`);
+
+  // DXY 해석
+  if      (data.dxy < 95)   items.push(`DXY ${data.dxy.toFixed(1)}: 달러 약세로 위험자산에 우호적입니다.`);
+  else if (data.dxy < 105)  items.push(`DXY ${data.dxy.toFixed(1)}: 달러가 중립 수준입니다.`);
+  else                       items.push(`DXY ${data.dxy.toFixed(1)}: 달러 강세가 지속 중입니다.`);
+
+  // Nasdaq 집중도
+  if (data.nasdaq_concentration >= 50)      items.push(`Nasdaq 집중도 ${data.nasdaq_concentration.toFixed(1)}%: 매우 높은 메가캡 집중. 분산 위험 존재.`);
+  else if (data.nasdaq_concentration >= 40) items.push(`Nasdaq 집중도 ${data.nasdaq_concentration.toFixed(1)}%: 상위 종목 집중도가 높습니다.`);
+  else                                       items.push(`Nasdaq 집중도 ${data.nasdaq_concentration.toFixed(1)}%: 집중도가 적정 수준입니다.`);
+
+  // 위험 / 안정 요인
+  const risks   = [];
+  const stables = [];
+  if (s.b.vix > 10)    risks.push('변동성'); else stables.push('변동성');
+  if (s.b.credit > 10) risks.push('신용');   else stables.push('신용');
+  if (s.b.liq > 10)    risks.push('유동성'); else stables.push('유동성');
+  if (s.b.yc > 6)      risks.push('경기신호');
+  if (s.b.conc > 8)    risks.push('집중도');
+
+  return { overall, items, risks, stables };
+}
+
+// ═══════════════════════════════════════════════════════════
+// RENDER
+// ═══════════════════════════════════════════════════════════
+function render(data) {
+  SCORES = score(data);
+  clearAlert();
+
+  const s = SCORES;
+  const colorMap = { CRITICAL:'#b91c1c', WARNING:'#92400e', CAUTION:'#1e40af', STABLE:'#166534' };
+  const labelMap = { CRITICAL:'위험', WARNING:'경고', CAUTION:'주의', STABLE:'안정' };
+  const classMap = { CRITICAL:'critical', WARNING:'warning', CAUTION:'caution', STABLE:'stable' };
+  const c = colorMap[s.level];
+
+  // Score Card
+  const sc = document.getElementById('scoreCard');
+  sc.className = 'score-card ' + classMap[s.level];
+  sc.innerHTML = `
+    <div class="score-header">
+      <div>
+        <div class="score-label">정량 리스크 · ${labelMap[s.level]}</div>
+        <div class="score-title" style="color:${c}">종합 위험도</div>
+      </div>
+      <div style="text-align:right;">
+        <div class="score-number" style="color:${c}">${s.total}</div>
+        <div class="score-label">/100</div>
+      </div>
+    </div>
+    <div class="score-bar">
+      <div class="score-bar-fill" style="width:${s.total}%;background:${c};"></div>
+    </div>
+    <div class="breakdown">
+      <div class="breakdown-item"><div class="breakdown-label">변동성</div><div class="breakdown-value">${s.b.vix}</div></div>
+      <div class="breakdown-item"><div class="breakdown-label">신용</div><div class="breakdown-value">${s.b.credit}</div></div>
+      <div class="breakdown-item"><div class="breakdown-label">경기</div><div class="breakdown-value">${s.b.yc}</div></div>
+      <div class="breakdown-item"><div class="breakdown-label">유동성</div><div class="breakdown-value">${s.b.liq}</div></div>
+      <div class="breakdown-item"><div class="breakdown-label">집중도</div><div class="breakdown-value">${s.b.conc}</div></div>
+      <div class="breakdown-item"><div class="breakdown-label">달러</div><div class="breakdown-value">${s.b.dxy}</div></div>
+    </div>`;
+  sc.classList.remove('hidden');
+
+  // Diagnosis
+  const d = diagnose(data, s);
+  const dp = document.getElementById('diagnosisPanel');
+  dp.innerHTML = `
+    <div class="diagnosis-section">
+      <strong>📊 종합 상황</strong>
+      <div class="diagnosis-item">${d.overall}</div>
+    </div>
+    <div class="diagnosis-section">
+      <strong>📈 지표별 해석</strong>
+      ${d.items.map(i => `<div class="diagnosis-item">${i}</div>`).join('')}
+    </div>
+    ${d.risks.length ? `<div class="diagnosis-section"><strong>⚠️ 위험 요인</strong><div class="diagnosis-item">${d.risks.join(', ')}</div></div>` : ''}
+    ${d.stables.length ? `<div class="diagnosis-section"><strong>✅ 안정 요인</strong><div class="diagnosis-item">${d.stables.join(', ')}</div></div>` : ''}
+  `;
+  dp.classList.remove('hidden');
+
+  // Metrics Grid
+  const metrics = [
+    { key:'vix',                 label:'VIX',      unit:'',   warn:25, crit:40 },
+    { key:'hy_oas',              label:'HY OAS',   unit:'bp', warn:350, crit:550 },
+    { key:'yield_curve_10y2y',   label:'10Y-2Y',   unit:'bp', warn:-100, crit:-200, lower:true },
+    { key:'dxy',                 label:'DXY',      unit:'',   warn:105, crit:115 },
+    { key:'fed_balance_sheet',   label:'Fed BS',   unit:'T$' },
+    { key:'tga',                 label:'TGA',      unit:'T$' },
+    { key:'on_rrp',              label:'ON RRP',   unit:'T$' },
+    { key:'nasdaq_concentration',label:'Nasdaq',   unit:'%',  warn:40, crit:50 },
+  ];
+
+  document.getElementById('metricsGrid').innerHTML = metrics.map(m => {
+    const v = data[m.key];
+    let badge = 'normal';
+    if (m.lower) {
+      if (m.crit != null && v <= m.crit) badge = 'critical';
+      else if (m.warn != null && v <= m.warn) badge = 'warning';
+    } else {
+      if (m.crit != null && v >= m.crit) badge = 'critical';
+      else if (m.warn != null && v >= m.warn) badge = 'warning';
+    }
+    return `<div class="metric-card">
+      <div class="metric-label">${m.label}</div>
+      <div class="metric-value">${v != null ? Number(v).toFixed(1) : '-'} <span style="font-size:9px;font-weight:400;color:#6b7280;">${m.unit}</span></div>
+      <span class="metric-badge ${badge}">${badge==='critical'?'⚠️위험':badge==='warning'?'⚡주의':'✓정상'}</span>
+    </div>`;
+  }).join('');
+
+  // Net Liquidity
+  const nlPanel = document.getElementById('netLiqPanel');
+  nlPanel.innerHTML = `
+    <div><div class="nl-label">Fed BS</div><div class="nl-value">${(data.fed_balance_sheet||0).toFixed(2)}T$</div></div>
+    <div><div class="nl-label">− TGA</div><div class="nl-value">${(data.tga||0).toFixed(2)}T$</div></div>
+    <div><div class="nl-label">− ON RRP</div><div class="nl-value">${(data.on_rrp||0).toFixed(3)}T$</div></div>
+    <div><div class="nl-label">= Net Liq</div><div class="nl-value" style="color:${parseFloat(s.net_liq)<6?'#b91c1c':'#16a34a'}">${s.net_liq}T$</div></div>
+  `;
+  nlPanel.classList.remove('hidden');
+
+  // Header meta
+  if (data.updated_at) {
+    const d = new Date(data.updated_at);
+    document.getElementById('lastUpdated').textContent = d.toLocaleString('ko-KR', {month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'}) + ' 수집';
+  }
+  document.getElementById('dataSource').textContent = 'FRED + Yahoo Finance';
+
+  document.getElementById('recalcBtn').disabled = false;
+  document.getElementById('claudeBtn').disabled = !CFG.apiKey;
+}
+
+// ═══════════════════════════════════════════════════════════
+// CLAUDE ANALYSIS
+// ═══════════════════════════════════════════════════════════
+async function showAnalysis() {
+  if (!RAW || !CFG.apiKey) {
+    alert('API Key를 설정하세요 (⚙️)');
+    return;
+  }
+  const modal = document.getElementById('claudeModal');
+  const content = document.getElementById('claudeContent');
+  modal.classList.add('open');
+  content.innerHTML = '<div style="text-align:center;padding:16px;"><div class="spinner-mini"></div><div style="margin-top:8px;font-size:10px;">분석 중...</div></div>';
+
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': CFG.apiKey,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({
+        model: 'claude-opus-4-20250805',
+        max_tokens: 300,
+        messages: [{
+          role: 'user',
+          content: `US financial market data (${new Date(RAW.updated_at).toLocaleDateString('ko-KR')}):
+VIX: ${RAW.vix}, HY OAS: ${RAW.hy_oas}bp, 10Y-2Y: ${RAW.yield_curve_10y2y}bp
+Fed BS: ${RAW.fed_balance_sheet}T$, Net Liq: ${SCORES.net_liq}T$
+DXY: ${RAW.dxy}, Risk Score: ${SCORES.total}/100 (${SCORES.level})
+
+한국어로 간결하게: (1) 현재 시장 상황의 핵심 (2) 가장 주목할 리스크 (3) 투자자 관점에서 실질적 시사점. 총 5~7문장.`
+        }],
+      }),
+    });
+    if (!res.ok) throw new Error(`API ${res.status}`);
+    const result = await res.json();
+    content.innerHTML = result.content[0].text;
+  } catch (e) {
+    content.innerHTML = `<span style="color:#dc2626;">오류: ${e.message}</span>`;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// HELPERS
+// ═══════════════════════════════════════════════════════════
+function setStatus(msg) {
+  document.getElementById('statusMsg').textContent = msg;
+}
+function setAlert(type, msg) {
+  document.getElementById('alertBox').innerHTML = `<div class="alert ${type}">${msg}</div>`;
+}
+function clearAlert() {
+  document.getElementById('alertBox').innerHTML = '';
+}
+
+// ═══════════════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════════════
+window.addEventListener('load', () => {
+  // API 상태 표시
+  document.getElementById('apiStatus').innerHTML = CFG.apiKey
+    ? '<span class="status-ok">✓ API 설정</span>'
+    : '<span style="color:#6b7280;">API Key 없음</span>';
+
+  // 캐시 데이터 우선 표시 후 자동 로드
+  const cached = localStorage.getItem(STORAGE_KEY + 'data');
+  if (cached) {
+    RAW = JSON.parse(cached);
+    render(RAW);
+    setAlert('info', '📦 캐시 데이터 표시 중. 🔄 버튼으로 최신 데이터 로드하세요.');
+  }
+
+  // 자동으로 최신 데이터 로드
+  loadData();
+});
+</script>
+</body>
+</html>
