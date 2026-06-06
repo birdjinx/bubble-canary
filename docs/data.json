@@ -1,12 +1,12 @@
 {
-  "vix": null,
-  "hy_oas": null,
-  "on_rrp": null,
-  "tga": null,
-  "fed_balance_sheet": null,
-  "yield_curve_10y2y": null,
-  "dxy": null,
-  "nasdaq_concentration": null,
-  "updated_at": null,
+  "vix": 21.51,
+  "hy_oas": 2.7,
+  "on_rrp": 0.001,
+  "tga": 0.876,
+  "fed_balance_sheet": 6.711,
+  "yield_curve_10y2y": 38.0,
+  "dxy": 100.07,
+  "nasdaq_concentration": 4593.5,
+  "updated_at": "2026-06-06T11:15:29.700130",
   "data_source": "FRED + Yahoo Finance"
 }
