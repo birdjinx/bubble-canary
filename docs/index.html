@@ -497,7 +497,7 @@ async function showAnalysis() {
       },
       body: JSON.stringify({
         model: 'claude-sonnet-4-6',
-        max_tokens: 900,
+        max_tokens: 1200,
         messages: [{
           role: 'user',
           content: `US financial market data (${new Date(RAW.updated_at).toLocaleDateString('ko-KR')}):
