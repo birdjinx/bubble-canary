@@ -54,17 +54,15 @@
     .alert.info { border-color: #3b82f6; background: #eff6ff; color: #1e40af; }
 
     .score-card { padding: 16px; border-radius: 8px; border: 2px solid; }
-    .score-card.critical { border-color: #fca5a5; background: #fef2f2; }
-    .score-card.warning { border-color: #fde68a; background: #fefce8; }
-    .score-card.caution { border-color: #bfdbfe; background: #eff6ff; }
-    .score-card.stable { border-color: #bbf7d0; background: #f0fdf4; }
+    .score-card.critical { border-color: #ddd6fe; background: #faf5ff; }
+    .score-card.danger   { border-color: #fca5a5; background: #fef2f2; }
+    .score-card.warning  { border-color: #fed7aa; background: #fff7ed; }
+    .score-card.caution  { border-color: #fde68a; background: #fefce8; }
+    .score-card.stable   { border-color: #bbf7d0; background: #f0fdf4; }
 
-    .score-header { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 10px; }
-    .score-label { font-size: 9px; color: #6b7280; margin-bottom: 2px; }
-    .score-title { font-size: 14px; font-weight: 700; }
-    .score-number { font-size: 40px; font-family: monospace; font-weight: 700; line-height: 1; }
-    .score-bar { width: 100%; height: 6px; background: #e5e7eb; border-radius: 3px; overflow: hidden; margin: 8px 0; }
-    .score-bar-fill { height: 100%; border-radius: 3px; transition: width 800ms ease; }
+    .gauge-wrap { display: flex; align-items: center; gap: 16px; }
+    .gauge-svg  { flex: 0 0 180px; }
+    .gauge-info { flex: 1; }
 
     .breakdown { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 10px; }
     .breakdown-item { padding: 6px 8px; background: rgba(0,0,0,0.03); border-radius: 4px; font-size: 9px; }
@@ -86,9 +84,7 @@
     .metric-badge.warning { background: #fef3c7; color: #92400e; }
     .metric-badge.critical { background: #fee2e2; color: #b91c1c; }
 
-    .net-liq { padding: 10px 14px; background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 6px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; font-size: 9px; }
-    .nl-label { color: #6b7280; margin-bottom: 2px; }
-    .nl-value { font-size: 12px; font-weight: 700; }
+    .net-liq { padding: 12px 16px; background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 8px; }
 
     .footer { text-align: center; font-size: 8px; color: #9ca3af; padding: 16px 0; font-family: monospace; }
     .hidden { display: none; }
@@ -300,7 +296,7 @@ function score(data) {
   return {
     total: Math.round(total),
     b,
-    level: total >= 70 ? 'CRITICAL' : total >= 50 ? 'WARNING' : total >= 30 ? 'CAUTION' : 'STABLE',
+    level: total >= 80 ? 'CRITICAL' : total >= 60 ? 'DANGER' : total >= 40 ? 'WARNING' : total >= 20 ? 'CAUTION' : 'STABLE',
     net_liq: nl.toFixed(2),
   };
 }
@@ -312,10 +308,11 @@ function diagnose(data, s) {
   const nl = parseFloat(s.net_liq);
 
   const overall = {
-    CRITICAL: '시장이 고위험 상태입니다. 포지션 전면 재검토가 필요합니다.',
+    CRITICAL: '시장이 위기 상태입니다. 즉각적인 포지션 전면 재검토가 필요합니다.',
+    DANGER:   '시장이 고위험 상태입니다. 적극적인 방어 조치가 필요합니다.',
     WARNING:  '시장에 경고 신호가 있습니다. 위험 요인을 주의 깊게 모니터링하세요.',
     CAUTION:  '시장이 다소 불안정합니다. 정기 점검을 유지하세요.',
-    STABLE:   '시장이 상대적으로 안정적입니다.',
+    STABLE:   '시장이 안정적입니다.',
   }[s.level];
 
   const items = [];
@@ -374,35 +371,68 @@ function render(data) {
   clearAlert();
 
   const s = SCORES;
-  const colorMap = { CRITICAL:'#b91c1c', WARNING:'#92400e', CAUTION:'#1e40af', STABLE:'#166534' };
-  const labelMap = { CRITICAL:'위험', WARNING:'경고', CAUTION:'주의', STABLE:'안정' };
-  const classMap = { CRITICAL:'critical', WARNING:'warning', CAUTION:'caution', STABLE:'stable' };
+  const colorMap = {
+    CRITICAL:'#7c3aed', DANGER:'#dc2626', WARNING:'#ea580c', CAUTION:'#ca8a04', STABLE:'#16a34a'
+  };
+  const labelMap = {
+    CRITICAL:'위기', DANGER:'위험', WARNING:'경고', CAUTION:'주의', STABLE:'안정'
+  };
+  const classMap = {
+    CRITICAL:'critical', DANGER:'danger', WARNING:'warning', CAUTION:'caution', STABLE:'stable'
+  };
   const c = colorMap[s.level];
+
+  // ── 반원형 게이지 생성 ──
+  function buildGauge(sc) {
+    const cx=100, cy=108, ro=78, ri=54;
+    const segs=[
+      {from:0, to:20, color:'#16a34a'},
+      {from:20,to:40, color:'#ca8a04'},
+      {from:40,to:60, color:'#ea580c'},
+      {from:60,to:80, color:'#dc2626'},
+      {from:80,to:100,color:'#7c3aed'},
+    ];
+    const toRad = v=>(-180+v*1.8)*Math.PI/180;
+    const pt=(a,r)=>({x:cx+r*Math.cos(a), y:cy+r*Math.sin(a)});
+    const arcPath=(f,t)=>{
+      const a1=toRad(f),a2=toRad(t);
+      const p1=pt(a1,ro),p2=pt(a2,ro),p3=pt(a2,ri),p4=pt(a1,ri),lg=(t-f)>50?1:0;
+      return `M${p1.x} ${p1.y} A${ro} ${ro} 0 ${lg} 1 ${p2.x} ${p2.y} L${p3.x} ${p3.y} A${ri} ${ri} 0 ${lg} 0 ${p4.x} ${p4.y}Z`;
+    };
+    const na=toRad(sc), ne=pt(na,68);
+    const lbls=[
+      {t:'안정',v:10},{t:'주의',v:30},{t:'경고',v:50},{t:'위험',v:70},{t:'위기',v:90}
+    ];
+    return `<svg viewBox="0 0 200 118" width="100%" style="display:block;">
+      ${segs.map(sg=>`<path d="${arcPath(sg.from,sg.to)}" fill="${sg.color}" opacity="0.88"/>`).join('')}
+      <line x1="${cx}" y1="${cy}" x2="${ne.x.toFixed(1)}" y2="${ne.y.toFixed(1)}"
+            stroke="#111827" stroke-width="2.5" stroke-linecap="round"/>
+      <circle cx="${cx}" cy="${cy}" r="5" fill="#111827"/>
+      <circle cx="${cx}" cy="${cy}" r="2.5" fill="white"/>
+      ${lbls.map(l=>{const p=pt(toRad(l.v),92);return `<text x="${p.x.toFixed(1)}" y="${p.y.toFixed(1)}" text-anchor="middle" dominant-baseline="middle" font-size="7" fill="#374151" font-family="sans-serif">${l.t}</text>`;}).join('')}
+    </svg>`;
+  }
 
   // Score Card
   const sc = document.getElementById('scoreCard');
   sc.className = 'score-card ' + classMap[s.level];
   sc.innerHTML = `
-    <div class="score-header">
-      <div>
-        <div class="score-label">정량 리스크 · ${labelMap[s.level]}</div>
-        <div class="score-title" style="color:${c}">종합 위험도</div>
+    <div class="gauge-wrap">
+      <div class="gauge-svg">${buildGauge(s.total)}</div>
+      <div class="gauge-info">
+        <div style="font-size:9px;color:#6b7280;margin-bottom:4px;">정량 리스크</div>
+        <div style="font-size:12px;font-weight:700;color:${c};margin-bottom:6px;">종합 위험도 · ${labelMap[s.level]}</div>
+        <div style="font-size:36px;font-family:monospace;font-weight:700;color:${c};line-height:1;">${s.total}</div>
+        <div style="font-size:9px;color:#6b7280;margin-bottom:10px;">/100</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;font-size:9px;">
+          <div style="padding:4px 6px;background:rgba(0,0,0,0.03);border-radius:4px;"><span style="color:#6b7280;">변동성</span><br/><strong>${s.b.vix}</strong></div>
+          <div style="padding:4px 6px;background:rgba(0,0,0,0.03);border-radius:4px;"><span style="color:#6b7280;">신용</span><br/><strong>${s.b.credit}</strong></div>
+          <div style="padding:4px 6px;background:rgba(0,0,0,0.03);border-radius:4px;"><span style="color:#6b7280;">경기</span><br/><strong>${s.b.yc}</strong></div>
+          <div style="padding:4px 6px;background:rgba(0,0,0,0.03);border-radius:4px;"><span style="color:#6b7280;">유동성</span><br/><strong>${s.b.liq}</strong></div>
+          <div style="padding:4px 6px;background:rgba(0,0,0,0.03);border-radius:4px;"><span style="color:#6b7280;">집중도</span><br/><strong>${s.b.conc}</strong></div>
+          <div style="padding:4px 6px;background:rgba(0,0,0,0.03);border-radius:4px;"><span style="color:#6b7280;">달러</span><br/><strong>${s.b.dxy}</strong></div>
+        </div>
       </div>
-      <div style="text-align:right;">
-        <div class="score-number" style="color:${c}">${s.total}</div>
-        <div class="score-label">/100</div>
-      </div>
-    </div>
-    <div class="score-bar">
-      <div class="score-bar-fill" style="width:${s.total}%;background:${c};"></div>
-    </div>
-    <div class="breakdown">
-      <div class="breakdown-item"><div class="breakdown-label">변동성</div><div class="breakdown-value">${s.b.vix}</div></div>
-      <div class="breakdown-item"><div class="breakdown-label">신용</div><div class="breakdown-value">${s.b.credit}</div></div>
-      <div class="breakdown-item"><div class="breakdown-label">경기</div><div class="breakdown-value">${s.b.yc}</div></div>
-      <div class="breakdown-item"><div class="breakdown-label">유동성</div><div class="breakdown-value">${s.b.liq}</div></div>
-      <div class="breakdown-item"><div class="breakdown-label">집중도</div><div class="breakdown-value">${s.b.conc}</div></div>
-      <div class="breakdown-item"><div class="breakdown-label">달러</div><div class="breakdown-value">${s.b.dxy}</div></div>
     </div>`;
   sc.classList.remove('hidden');
 
@@ -423,16 +453,13 @@ function render(data) {
   `;
   dp.classList.remove('hidden');
 
-  // Metrics Grid
+  // Metrics Grid (핵심 5개)
   const metrics = [
-    { key:'vix',                 label:'VIX',      unit:'',   warn:25, crit:40 },
-    { key:'hy_oas',              label:'HY OAS',   unit:'bp', warn:350, crit:550 },
-    { key:'yield_curve_10y2y',   label:'10Y-2Y',   unit:'bp', warn:-100, crit:-200, lower:true },
-    { key:'dxy',                 label:'DXY',      unit:'',   warn:105, crit:115 },
-    { key:'fed_balance_sheet',   label:'Fed BS',   unit:'T$' },
-    { key:'tga',                 label:'TGA',      unit:'T$' },
-    { key:'on_rrp',              label:'ON RRP',   unit:'T$' },
-    { key:'nasdaq_concentration',label:'Nasdaq',   unit:'%',  warn:40, crit:50 },
+    { key:'vix',                  label:'VIX',      unit:'',   warn:25,   crit:40,  lower:false },
+    { key:'hy_oas',               label:'HY OAS',   unit:'bp', warn:350,  crit:550, lower:false },
+    { key:'yield_curve_10y2y',    label:'10Y-2Y',   unit:'bp', warn:-100, crit:-200,lower:true  },
+    { key:'dxy',                  label:'DXY',      unit:'',   warn:105,  crit:115, lower:false },
+    { key:'nasdaq_concentration', label:'Nasdaq',   unit:'%',  warn:40,   crit:50,  lower:false },
   ];
 
   document.getElementById('metricsGrid').innerHTML = metrics.map(m => {
@@ -445,20 +472,56 @@ function render(data) {
       if (m.crit != null && v >= m.crit) badge = 'critical';
       else if (m.warn != null && v >= m.warn) badge = 'warning';
     }
+    const bs = badge==='critical'
+      ? 'background:#fee2e2;color:#b91c1c;border:1px solid #fca5a5;'
+      : badge==='warning'
+      ? 'background:#fef3c7;color:#92400e;border:1px solid #fde68a;'
+      : 'background:#dbeafe;color:#1e40af;border:1px solid #bfdbfe;';
+    const bt = badge==='critical'?'⚠️ 위험':badge==='warning'?'⚡ 주의':'✓ 정상';
     return `<div class="metric-card">
       <div class="metric-label">${m.label}</div>
-      <div class="metric-value">${v != null ? Number(v).toFixed(1) : '-'} <span style="font-size:9px;font-weight:400;color:#6b7280;">${m.unit}</span></div>
-      <span class="metric-badge ${badge}">${badge==='critical'?'⚠️위험':badge==='warning'?'⚡주의':'✓정상'}</span>
+      <div class="metric-value">${v!=null?Number(v).toFixed(1):'-'} <span style="font-size:9px;font-weight:400;color:#6b7280;">${m.unit}</span></div>
+      <span style="${bs}padding:2px 7px;border-radius:4px;font-size:8px;font-weight:600;">${bt}</span>
     </div>`;
   }).join('');
 
-  // Net Liquidity
+  // Net Liquidity 계산식 패널
+  const nlv = parseFloat(s.net_liq);
+  const nlColor = nlv<6.0?'#b91c1c':nlv<6.5?'#ea580c':'#166534';
+  const nlBadge = nlv<6.0
+    ? 'background:#fee2e2;color:#b91c1c;border:1px solid #fca5a5;'
+    : nlv<6.5
+    ? 'background:#fef3c7;color:#92400e;border:1px solid #fde68a;'
+    : 'background:#dbeafe;color:#1e40af;border:1px solid #bfdbfe;';
+  const nlStatus = nlv<6.0?'⚠️ 위험':nlv<6.5?'⚡ 주의':'✓ 정상';
+
   const nlPanel = document.getElementById('netLiqPanel');
   nlPanel.innerHTML = `
-    <div><div class="nl-label">Fed BS</div><div class="nl-value">${(data.fed_balance_sheet||0).toFixed(2)}T$</div></div>
-    <div><div class="nl-label">− TGA</div><div class="nl-value">${(data.tga||0).toFixed(2)}T$</div></div>
-    <div><div class="nl-label">− ON RRP</div><div class="nl-value">${(data.on_rrp||0).toFixed(3)}T$</div></div>
-    <div><div class="nl-label">= Net Liq</div><div class="nl-value" style="color:${parseFloat(s.net_liq)<6?'#b91c1c':'#16a34a'}">${s.net_liq}T$</div></div>
+    <div style="font-size:10px;font-weight:600;color:#0369a1;margin-bottom:10px;">
+      💧 Net Liquidity <span style="font-weight:400;color:#6b7280;">(연준 실질 유동성)</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+      <div style="text-align:center;">
+        <div style="font-size:15px;font-weight:700;color:#1e40af;">${(data.fed_balance_sheet||0).toFixed(2)}<span style="font-size:9px;font-weight:400;color:#6b7280;"> T$</span></div>
+        <div style="font-size:9px;color:#6b7280;margin-top:2px;">Fed BS</div>
+      </div>
+      <div style="font-size:18px;color:#9ca3af;font-weight:300;">−</div>
+      <div style="text-align:center;">
+        <div style="font-size:15px;font-weight:700;color:#374151;">${(data.tga||0).toFixed(2)}<span style="font-size:9px;font-weight:400;color:#6b7280;"> T$</span></div>
+        <div style="font-size:9px;color:#6b7280;margin-top:2px;">TGA</div>
+      </div>
+      <div style="font-size:18px;color:#9ca3af;font-weight:300;">−</div>
+      <div style="text-align:center;">
+        <div style="font-size:15px;font-weight:700;color:#374151;">${(data.on_rrp||0).toFixed(3)}<span style="font-size:9px;font-weight:400;color:#6b7280;"> T$</span></div>
+        <div style="font-size:9px;color:#6b7280;margin-top:2px;">ON RRP</div>
+      </div>
+      <div style="font-size:18px;color:#9ca3af;font-weight:300;">=</div>
+      <div style="text-align:center;padding:8px 12px;background:rgba(255,255,255,0.8);border-radius:8px;border:1px solid #bae6fd;">
+        <div style="font-size:20px;font-weight:700;color:${nlColor};">${s.net_liq}<span style="font-size:11px;"> T$</span></div>
+        <div style="font-size:9px;color:#6b7280;margin-top:2px;">실질 유동성</div>
+      </div>
+      <span style="${nlBadge}padding:3px 8px;border-radius:4px;font-size:8px;font-weight:600;">${nlStatus}</span>
+    </div>
   `;
   nlPanel.classList.remove('hidden');
 
