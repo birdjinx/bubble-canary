@@ -21,7 +21,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install yfinance pandas fredapi requests
+          pip install yfinance pandas fredapi requests numpy
 
       - name: Collect data
         env:
@@ -31,7 +31,11 @@ jobs:
       - name: Commit and push
         run: |
           git config --local user.email "action@github.com"
-          git config --local user.name "GitHub Action"
+          git config --local user.name "actions-user"
+          # data.json 커밋
           git add docs/data.json
+          # 워크플로우 활성 상태 유지 (GitHub 자동 비활성화 방지)
+          echo "$(date -u +'%Y-%m-%d %H:%M UTC')" > .github/last_run.txt
+          git add .github/last_run.txt
           git diff --staged --quiet || git commit -m "data: update $(date -u +'%Y-%m-%d %H:%M UTC')"
           git push
