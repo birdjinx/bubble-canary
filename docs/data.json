@@ -1,16 +1,16 @@
 {
-  "vix": 17.6,
+  "vix": 17.58,
   "hy_oas": 283.0,
   "on_rrp": 0.004,
   "tga": 0.919,
   "fed_balance_sheet": 6.736,
   "yield_curve_10y2y": 28.0,
-  "dxy": 101.38,
+  "dxy": 101.37,
   "nasdaq_concentration": 44.6,
   "sp500_rsi": 52.3,
   "sp500_ma200_dist": 7.4,
   "fed_gap": 0.44,
   "fed_funds_rate": 3.63,
-  "updated_at": "2026-06-30T08:30:36.614669",
+  "updated_at": "2026-06-30T10:41:52.128036",
   "data_source": "FRED + Yahoo Finance"
 }
