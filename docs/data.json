@@ -5,12 +5,12 @@
   "tga": 0.774,
   "fed_balance_sheet": 6.736,
   "yield_curve_10y2y": 35.0,
-  "dxy": 100.96,
+  "dxy": 101.1,
   "nasdaq_concentration": 45.9,
   "sp500_rsi": 60.0,
   "sp500_ma200_dist": 8.8,
   "fed_gap": 0.53,
   "fed_funds_rate": 3.63,
-  "updated_at": "2026-07-10T22:55:19.560177",
+  "updated_at": "2026-07-13T05:40:00.198001",
   "data_source": "FRED + Yahoo Finance"
 }
