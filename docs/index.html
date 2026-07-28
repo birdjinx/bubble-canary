@@ -268,7 +268,7 @@ function recalc() {
 // SCORING
 // ═══════════════════════════════════════════════════════════
 function score(data) {
-  const b = { vix:0, credit:0, yc:0, liq:0, conc:0, dxy:0, sp_rsi:0, fed_gap:0, regime:0 };
+  const b = { vix:0, credit:0, yc:0, liq:0, conc:0, dxy:0, sp_rsi:0, fed_gap:0, t10y:0, regime:0 };
 
   // VIX (max 20)
   if      (data.vix >= 40) b.vix = 20;
@@ -324,6 +324,15 @@ function score(data) {
     else if (data.fed_gap >  0.75) b.fed_gap = 5;  // 인상 기대
   }
 
+  // 10Y 국채금리 절대 수준 (max 12점)
+  // 높을수록 기업·가계 차입 부담 증가, 주식 밸류에이션 압박
+  if (data.t10y_yield != null) {
+    if      (data.t10y_yield >= 5.0) b.t10y = 12;  // 역사적 고금리 — 강한 긴축 효과
+    else if (data.t10y_yield >= 4.5) b.t10y = 8;   // 긴축적 수준
+    else if (data.t10y_yield >= 4.0) b.t10y = 4;   // 다소 높음
+    else if (data.t10y_yield >= 3.5) b.t10y = 2;   // 중립
+  }
+
   // Regime Shift 보너스 (여러 지표 동시 경고)
   if (b.liq >= 11 && b.credit >= 8 && b.vix >= 8) b.regime = 15;
 
@@ -376,6 +385,16 @@ function diagnose(data, s) {
   else if (nl > 6.0)  items.push(`Net Liquidity ${nl}T$: 유동성이 다소 축소되고 있습니다.`);
   else                items.push(`Net Liquidity ${nl}T$: 유동성이 크게 줄었습니다.`);
 
+  // 10Y 국채금리 해석
+  if (data.t10y_yield != null) {
+    const y = data.t10y_yield.toFixed(2);
+    if      (data.t10y_yield >= 5.0) items.push(`10Y 국채금리 ${y}%: 역사적 고금리입니다. 기업 차입 비용과 주식 밸류에이션에 강한 하방 압력을 줍니다.`);
+    else if (data.t10y_yield >= 4.5) items.push(`10Y 국채금리 ${y}%: 긴축적 수준입니다. 모기지·회사채 금리가 높아 실물 경제에 부담이 됩니다.`);
+    else if (data.t10y_yield >= 4.0) items.push(`10Y 국채금리 ${y}%: 다소 높은 수준입니다. 지속 시 투자 둔화 압력이 커집니다.`);
+    else if (data.t10y_yield >= 3.5) items.push(`10Y 국채금리 ${y}%: 중립적 수준입니다.`);
+    else                              items.push(`10Y 국채금리 ${y}%: 저금리 환경입니다. 유동성에 우호적입니다.`);
+  }
+
   // DXY 해석
   if      (data.dxy < 95)   items.push(`DXY ${data.dxy.toFixed(1)}: 달러 약세로 위험자산에 우호적입니다.`);
   else if (data.dxy < 105)  items.push(`DXY ${data.dxy.toFixed(1)}: 달러가 중립 수준입니다.`);
@@ -424,6 +443,7 @@ function diagnose(data, s) {
   if (s.b.liq > 10)    risks.push('유동성'); else stables.push('유동성');
   if (s.b.yc > 5)      risks.push('경기신호');
   if (s.b.conc > 4)    risks.push('집중도');
+  if (s.b.t10y > 4)    risks.push('10Y 금리'); else if (data.t10y_yield != null) stables.push('10Y 금리');
   if (s.b.sp_rsi > 5)  risks.push('S&P 모멘텀'); else if (data.sp500_rsi != null) stables.push('S&P 모멘텀');
   if (s.b.fed_gap > 4) risks.push('금리 경로');  else if (data.fed_gap != null) stables.push('금리 경로');
 
@@ -500,6 +520,7 @@ function render(data) {
           <div style="padding:4px 6px;background:rgba(0,0,0,0.03);border-radius:4px;"><span style="color:#6b7280;">달러</span><br/><strong>${s.b.dxy}</strong></div>
           <div style="padding:4px 6px;background:rgba(0,0,0,0.03);border-radius:4px;"><span style="color:#6b7280;">S&P 모멘텀</span><br/><strong>${s.b.sp_rsi}</strong></div>
           <div style="padding:4px 6px;background:rgba(0,0,0,0.03);border-radius:4px;"><span style="color:#6b7280;">금리 경로</span><br/><strong>${s.b.fed_gap}</strong></div>
+          <div style="padding:4px 6px;background:rgba(0,0,0,0.03);border-radius:4px;grid-column:span 2;"><span style="color:#6b7280;">10Y 금리</span><br/><strong>${s.b.t10y}</strong></div>
         </div>
       </div>
     </div>`;
@@ -596,31 +617,66 @@ function render(data) {
       </div>
     </div>`;
 
-  // ── 금리 경로 전용 행 ──
+  // ── 금리 환경 행 (10Y + FF Rate + Gap + 해석) ──
+  const t10yVal = data.t10y_yield != null ? data.t10y_yield.toFixed(2) : '–';
+  const t10yBadge = makeBadge(data.t10y_yield, 4.0, 4.5, false);
   const gapVal  = data.fed_gap != null ? data.fed_gap.toFixed(2) : '–';
   const ffr     = data.fed_funds_rate != null ? data.fed_funds_rate.toFixed(2) : '–';
   const t2y     = data.fed_gap != null && data.fed_funds_rate != null
     ? (data.fed_gap + data.fed_funds_rate).toFixed(2) : '–';
-  const gapDir  = data.fed_gap == null ? '–'
-    : data.fed_gap < -1.0 ? '시장이 대규모 인하를 기대합니다 — 경기 위기 신호'
-    : data.fed_gap < -0.5 ? '시장이 금리 인하를 기대합니다 — 경기 둔화 신호'
-    : data.fed_gap <  0.5 ? '금리 정책에 대한 시장 기대가 중립적입니다'
-    : data.fed_gap <  1.5 ? '시장이 추가 인상을 소폭 기대합니다'
-    : '시장이 공격적 인상을 기대합니다 — 금리 충격 위험';
+
+  // 10Y 금리 맥락 해석
+  const t10yCtx = data.t10y_yield == null ? '–'
+    : data.t10y_yield >= 5.0 ? '역사적 고금리 — 강한 긴축 효과, 주식 밸류에이션 압박'
+    : data.t10y_yield >= 4.5 ? '긴축적 수준 — 모기지·회사채 부담, 실물 경제 하방 압력'
+    : data.t10y_yield >= 4.0 ? '다소 높은 수준 — 투자 둔화 압력 상존'
+    : data.t10y_yield >= 3.5 ? '중립적 수준 — 시장에 큰 부담 없음'
+    : '저금리 환경 — 유동성에 우호적';
+
+  const gapDir = data.fed_gap == null ? '–'
+    : data.fed_gap < -1.0 ? '대규모 인하 기대 — 경기 위기 신호'
+    : data.fed_gap < -0.5 ? '금리 인하 기대 — 경기 둔화 신호'
+    : data.fed_gap <  0.5 ? '정책 기대 중립'
+    : data.fed_gap <  1.5 ? '소폭 인상 기대'
+    : '공격적 인상 기대 — 금리 충격 위험';
 
   const fgRow = document.getElementById('fedGapRow');
   fgRow.innerHTML = `
-    <div class="fed-gap-main">
-      <div style="font-size:10px;font-weight:600;color:#6b7280;margin-bottom:8px;">🏛️ 금리 경로</div>
-      <div style="font-size:9px;color:#6b7280;margin-bottom:2px;">Fed Gap</div>
-      <div style="font-size:16px;font-weight:700;color:#111827;margin-bottom:4px;">${gapVal}<span style="font-size:9px;font-weight:400;color:#6b7280;margin-left:2px;">%</span></div>
-      <span style="${badgeStyle(fedBadge)}padding:2px 7px;border-radius:4px;font-size:8px;font-weight:600;">${badgeText(fedBadge)}</span>
-    </div>
-    <div class="fed-gap-divider"></div>
-    <div class="fed-gap-context">
-      <div style="margin-bottom:5px;"><strong>계산식</strong> &nbsp; 2Y 국채 ${t2y}% &minus; Fed Funds ${ffr}% = ${gapVal}%</div>
-      <div><strong>해석</strong> &nbsp; ${gapDir}</div>
+    <div style="font-size:10px;font-weight:600;color:#6b7280;margin-bottom:10px;width:100%;">🏛️ 금리 환경</div>
+    <div style="display:grid;grid-template-columns:auto auto auto 1fr;gap:0;align-items:start;width:100%;">
+      <div style="padding-right:16px;border-right:1px solid #d1fae5;">
+        <div style="font-size:9px;color:#6b7280;margin-bottom:2px;">10Y 국채금리</div>
+        <div style="font-size:18px;font-weight:700;color:#111827;margin-bottom:4px;">${t10yVal}<span style="font-size:9px;font-weight:400;color:#6b7280;margin-left:1px;">%</span></div>
+        <span style="${badgeStyle(t10yBadge)}padding:2px 7px;border-radius:4px;font-size:8px;font-weight:600;">${badgeText(t10yBadge)}</span>
+        <div style="font-size:8px;color:#6b7280;margin-top:5px;">${t10yCtx}</div>
+      </div>
+      <div style="padding:0 16px;border-right:1px solid #d1fae5;">
+        <div style="font-size:9px;color:#6b7280;margin-bottom:2px;">Fed Funds Rate</div>
+        <div style="font-size:18px;font-weight:700;color:#374151;margin-bottom:4px;">${ffr}<span style="font-size:9px;font-weight:400;color:#6b7280;margin-left:1px;">%</span></div>
+        <div style="font-size:8px;color:#6b7280;margin-top:28px;">현재 정책금리</div>
+      </div>
+      <div style="padding:0 16px;border-right:1px solid #d1fae5;">
+        <div style="font-size:9px;color:#6b7280;margin-bottom:2px;">Fed Gap (2Y−FF)</div>
+        <div style="font-size:18px;font-weight:700;color:#111827;margin-bottom:4px;">${gapVal}<span style="font-size:9px;font-weight:400;color:#6b7280;margin-left:1px;">%</span></div>
+        <span style="${badgeStyle(fedBadge)}padding:2px 7px;border-radius:4px;font-size:8px;font-weight:600;">${badgeText(fedBadge)}</span>
+        <div style="font-size:8px;color:#6b7280;margin-top:5px;">${gapDir}</div>
+      </div>
+      <div style="padding-left:16px;">
+        <div style="font-size:9px;color:#6b7280;margin-bottom:6px;">금리 구조 해석</div>
+        <div style="font-size:10px;color:#374151;line-height:1.65;">
+          ${data.t10y_yield != null && data.fed_funds_rate != null
+            ? `10Y(${t10yVal}%) − FF(${ffr}%) = <strong>${(data.t10y_yield - data.fed_funds_rate).toFixed(2)}%</strong> 스프레드<br/>
+               ${data.t10y_yield - data.fed_funds_rate > 1.0
+                 ? '장기금리가 높게 고착 — 재정적자·인플레 우려 반영'
+                 : data.t10y_yield - data.fed_funds_rate > 0
+                 ? '장기금리 소폭 우위 — 정상 구조'
+                 : '단기금리 우위 — 역전 상태, 경기 둔화 신호'}`
+            : '데이터 로드 후 확인 가능'}
+        </div>
+      </div>
     </div>`;
+  fgRow.style.flexDirection = 'column';
+  fgRow.style.alignItems    = 'flex-start';
   fgRow.classList.remove('hidden');
 
   // Net Liquidity 계산식 패널
