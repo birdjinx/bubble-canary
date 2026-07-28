@@ -199,6 +199,9 @@ def collect():
         # 10Y-2Y Yield Curve (% → basis points)
         "yield_curve_10y2y": get_fred("T10Y2Y", multiplier=100, decimals=1),
 
+        # 10Y 국채금리 절대 수준 (%)
+        "t10y_yield": get_fred("DGS10", decimals=2),
+
         # DXY: 달러 인덱스
         "dxy": get_yahoo("DX-Y.NYB"),
 
@@ -224,7 +227,7 @@ def collect():
 
     # 수집 결과 요약
     success = sum(1 for v in data.values() if isinstance(v, (int, float)))
-    total = 12
+    total = 13
     print(f"\n✅ 수집 완료: {success}/{total} 지표")
 
     # 저장
