@@ -1,17 +1,17 @@
 {
-  "vix": 14.84,
+  "vix": 15.21,
   "hy_oas": 315.0,
   "on_rrp": 0.0,
   "tga": 0.88,
   "fed_balance_sheet": 6.748,
   "yield_curve_10y2y": 44.0,
   "t10y_yield": 5.22,
-  "dxy": 102.23,
-  "nasdaq_concentration": 47.0,
-  "sp500_rsi": 59.9,
-  "sp500_ma200_dist": 7.7,
+  "dxy": 102.42,
+  "nasdaq_concentration": 47.2,
+  "sp500_rsi": 59.4,
+  "sp500_ma200_dist": 7.6,
   "fed_gap": 1.0,
   "fed_funds_rate": 3.75,
-  "updated_at": "2026-10-10T01:26:02.968586",
+  "updated_at": "2026-10-13T02:45:26.303584",
   "data_source": "FRED + Yahoo Finance"
 }
