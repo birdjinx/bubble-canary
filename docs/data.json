@@ -6,12 +6,12 @@
   "fed_balance_sheet": 6.756,
   "yield_curve_10y2y": 35.0,
   "t10y_yield": 5.1,
-  "dxy": 101.78,
+  "dxy": 101.82,
   "nasdaq_concentration": 47.8,
   "sp500_rsi": 44.1,
   "sp500_ma200_dist": 5.3,
   "fed_gap": 1.02,
   "fed_funds_rate": 3.75,
-  "updated_at": "2026-10-17T00:05:47.498444",
+  "updated_at": "2026-10-19T02:50:42.531989",
   "data_source": "FRED + Yahoo Finance"
 }
